@@ -8,9 +8,9 @@ CPI, unemployment, and holiday flags).
 
 | Name | GitHub Handle | Role (Week 1) |
 |------|---------------|---------------|
-| A    | @handle       | SQLite schema + data load |
-| B    | @handle       | Individual EDA |
-| C    | @handle       | Individual EDA |
+| Akash    | @handle       | SQLite schema + data load |
+| Balamanikandan    | @handle       | Individual EDA |
+| Syedwajid    | @handle       | Individual EDA |
 
 ## Project Structure
 
