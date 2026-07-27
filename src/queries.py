@@ -182,6 +182,71 @@ def load_full_table(conn):
     return pd.read_sql("SELECT * FROM Sales", conn, parse_dates=["sale_date"])
 
 
+# ---------------------------------------------------------------------------
+# 11. Store growth vs decline classification
+#     Fits a simple linear trend (slope of monthly sales over time) per store,
+#     plus a first-half vs second-half average comparison as a sanity check.
+# ---------------------------------------------------------------------------
+def store_growth_trend(conn, growth_threshold_pct=2.0):
+    """
+    Classifies each store as Growing / Declining / Stable based on its
+    monthly sales trend.
+
+    Method:
+    1. Pull monthly total sales per store (store_monthly_trend).
+    2. Fit a straight line (linear regression) to each store's monthly sales
+       over time -> the slope tells us the average $ change per month.
+    3. Also compute % change between the first half and second half of the
+       store's monthly history, as an easy-to-read sanity check.
+    4. Label a store "Growing" if second-half avg is more than
+       +growth_threshold_pct% above first-half avg, "Declining" if more than
+       -growth_threshold_pct% below, otherwise "Stable".
+
+    Returns a DataFrame: store_id, monthly_slope, first_half_avg,
+    second_half_avg, pct_change, trend_label -- sorted by pct_change desc
+    (biggest growers first).
+    """
+    import numpy as np
+
+    monthly = store_monthly_trend(conn)  # store_id, month, total_sales
+    results = []
+
+    for store_id, group in monthly.groupby("store_id"):
+        group = group.sort_values("month").reset_index(drop=True)
+        n = len(group)
+        if n < 2:
+            continue  # not enough data points to assess a trend
+
+        # Linear regression: sales ~ time_index (0, 1, 2, ...)
+        time_index = np.arange(n)
+        slope, intercept = np.polyfit(time_index, group["total_sales"], 1)
+
+        # First half vs second half average (simple, interpretable check)
+        midpoint = n // 2
+        first_half_avg = group["total_sales"].iloc[:midpoint].mean() if midpoint > 0 else group["total_sales"].iloc[0]
+        second_half_avg = group["total_sales"].iloc[midpoint:].mean()
+        pct_change = (second_half_avg - first_half_avg) / first_half_avg * 100
+
+        if pct_change > growth_threshold_pct:
+            label = "Growing"
+        elif pct_change < -growth_threshold_pct:
+            label = "Declining"
+        else:
+            label = "Stable"
+
+        results.append({
+            "store_id": store_id,
+            "monthly_slope": slope,
+            "first_half_avg": first_half_avg,
+            "second_half_avg": second_half_avg,
+            "pct_change": pct_change,
+            "trend_label": label,
+        })
+
+    df = pd.DataFrame(results)
+    return df.sort_values("pct_change", ascending=False).reset_index(drop=True)
+
+
 if __name__ == "__main__":
     import sqlite3
 
